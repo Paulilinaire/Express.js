@@ -1,42 +1,70 @@
-import express, { query } from 'express';
+import express from "express";
+import { TodoDao } from "./dao/TodoDao.js";
+import { Todo } from "./models/Todo.js";
 
-const app = express()
-const todos = [{}]
+const app = express();
 
-app.use(express.json()); //middleware
+// Classe d'accès aux données
+const todoDao = new TodoDao();
 
-// Créer une todo
-app.post("/todos", (req, res) => {
-    res.json(req.body)
-    todos.push(req.body)
+// Utilisation du middleware pour la sérialisation/desérialisation en JSON
+app.use(express.json());
+
+// Renvoie tous les todos
+app.get('/todos', (req, res) => {
+    res.json(todoDao.getAll());
 });
 
-app.get("/todos", (req, res) =>  {
-    res.json(todos)
+// Renvoie un todo spécifique
+app.get('/todos/:todoId', (req, res) => {
+    let todo = todoDao.findById(req.params.todoId);
+
+    if(todo == undefined) {
+        res.status(404).json({code: 404, message: "aucun todo trouvé avec cet id"});
+    }
+
+    res.json(todo);
 });
 
-// Mettre à jour une todo
-app.put("/todos/:todoId", (req, res) => {
-    res.json(req.body)
+// Créé un todo
+app.post('/todos', (req, res) => {
+    const {title, content, statut} = req.body;
+    let todo = new Todo(null, title, content, statut);
+    res.json(todoDao.save(todo));
 });
 
-// supprimer une todo
-app.delete("/todos/:todoId", (req, res) => {
-    res.json()
-    todos.pop()
+// Mettre à jour le todo
+app.put('/todos/:todoId', (req, res) => {
+    // Récupération des informations depuis le corps de la requête
+    const {id, title, content, statut} = req.body;
+
+    // On vérifie que l'id de l'objet correspond à celui passé en paramètre
+    if(req.params.todoId != id) res.sendStatus(409);
+
+    // Initialisation d'un todo
+    let todo = new Todo(id, title, content, statut);
+
+    // Mise à jour du todo
+    todoDao.updateTodo(todo) ? res.sendStatus(200) : res.status(400).json({code: 400, message: "problème lors de la mise à jour du todo"})
 });
 
-app.listen("3030", () => {
-    console.log("http://127.0.0.1:3030");
+// Modifier statut
+app.patch('/todos/:todoId/statut', (req, res) => {
+    todoDao.updateStatut(req.params.todoId) ? res.sendStatus(200) : res.sendStatus(400);
 });
 
-// Récupérer une todo
+// Supprimer le todo
+app.delete('/todos/:todoId', (req, res) => {
+    todoDao.deleteTodo(req.params.todoId);
+    res.sendStatus(200);
+});
 
-//afficher une todo particulière
-app.get("/todos/:todoId", (req, res) =>  {
-    const todoId = +req.params.todoId
-    console.log(todoId);
-    console.log(todos);
-    const foundTodo = todos.find(todo=> todo.todoId === todoId )
-    console.log(foundTodo)
+// Récupérer un todo par son title
+app.get('/todos/search/:search', (req, res) => {
+    res.json(todoDao.searchByTitle(req.params.search));
+});
+
+app.listen(3001, () => {
+    todoDao.readFile();
+    console.log('http://127.0.0.1:3001');
 });
